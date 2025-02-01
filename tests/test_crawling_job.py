@@ -97,3 +97,58 @@ async def test_successful_fetch(monkeypatch):
     job_id, data = store_calls[0]
     assert data.get("url") == "http://example.com"
     assert "http://example.com/page1" in data.get("links", [])
+
+
+@pytest.mark.asyncio
+async def test_http_failure(monkeypatch):
+    # Test scenario where HTTP requests (both standard and dynamic fetch) fail
+    store_calls = []
+
+    def fake_store(job_id, data):
+        store_calls.append((job_id, data))
+    monkeypatch.setattr("nds_crawler_svc.crawling_job.store_crawled_data", fake_store)
+    monkeypatch.setattr("nds_crawler_svc.crawling_job.is_recently_crawled", lambda url, session: False)
+
+    class FakeErrorClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            pass
+
+        async def get(self, url, **kwargs):
+            raise httpx.RequestError("HTTP request failure for testing")
+
+    monkeypatch.setattr(httpx, "AsyncClient", lambda timeout: FakeErrorClient())
+
+    await start_crawling_job("http://example.com", depth=0)
+    # Since both fetch attempts fail, store_crawled_data should not be called
+    assert len(store_calls) == 0
+
+
+@pytest.mark.asyncio
+async def test_non_html_response(monkeypatch):
+    # Test scenario where the response is non-HTML (e.g., application/json)
+    fake_response = FakeResponse(200, {"content-type": "application/json"}, '{"data": "not html"}')
+
+    class FakeNonHTMLClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            pass
+
+        async def get(self, url, **kwargs):
+            return fake_response
+
+    store_calls = []
+    def fake_store(job_id, data):
+        store_calls.append((job_id, data))
+        return "fake_path"
+    monkeypatch.setattr("nds_crawler_svc.crawling_job.store_crawled_data", fake_store)
+    monkeypatch.setattr("nds_crawler_svc.crawling_job.is_recently_crawled", lambda url, session: False)
+    monkeypatch.setattr(httpx, "AsyncClient", lambda timeout: FakeNonHTMLClient())
+
+    await start_crawling_job("http://example.com", depth=0)
+    # Since the response is not HTML, store_crawled_data should not be called
+    assert len(store_calls) == 0
