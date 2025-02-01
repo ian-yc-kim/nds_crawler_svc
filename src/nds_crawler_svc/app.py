@@ -2,12 +2,13 @@ from fastapi import FastAPI
 import logging
 from apscheduler.schedulers.background import BackgroundScheduler
 
-from nds_crawler_svc.routers import url_submission
+from nds_crawler_svc.routers import url_submission, url_submission_batch
 from nds_crawler_svc.storage import cleanup_old_data
 
 app = FastAPI(debug=True)
 
 app.include_router(url_submission.router)
+app.include_router(url_submission_batch.router)
 
 scheduler = BackgroundScheduler()
 
