@@ -3,7 +3,7 @@ import logging
 from apscheduler.schedulers.background import BackgroundScheduler
 
 from nds_crawler_svc.routers import url_submission
-from nds_crawler_svc.tasks import cleanup_old_urls
+from nds_crawler_svc.storage import cleanup_old_data
 
 app = FastAPI(debug=True)
 
@@ -14,11 +14,11 @@ scheduler = BackgroundScheduler()
 @app.on_event("startup")
 async def startup_event():
     try:
-        # Schedule the cleanup_old_urls job to run every 1 day
-        scheduler.add_job(cleanup_old_urls, 'interval', days=1)
+        # Schedule the cleanup_old_data job to run every 1 day
+        scheduler.add_job(cleanup_old_data, 'interval', days=1)
         scheduler.start()
         # Run an immediate cleanup on startup
-        cleanup_old_urls()
+        cleanup_old_data()
         app.state.scheduler = scheduler
     except Exception as e:
         logging.error(e, exc_info=True)
